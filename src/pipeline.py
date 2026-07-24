@@ -1,0 +1,130 @@
+"""
+pipeline.py
+-----------
+End-to-end run: load -> clean -> scale -> select k -> fit -> evaluate ->
+visualize -> translate clusters into business insights.
+
+Run with:  python src/pipeline.py
+Outputs land in results/
+"""
+
+import os
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+import seaborn as sns
+import pandas as pd
+
+from preprocessing import load_data, clean_data, scale_features, FEATURES
+from clustering import evaluate_k_range, best_k_by_silhouette, fit_kmeans
+
+sns.set_style("whitegrid")
+RESULTS_DIR = "results"
+
+
+def plot_elbow_and_silhouette(eval_df):
+    fig, axes = plt.subplots(1, 2, figsize=(12, 4.5))
+
+    axes[0].plot(eval_df["k"], eval_df["inertia"], marker="o", color="#2E86AB")
+    axes[0].set_title("Elbow Method")
+    axes[0].set_xlabel("Number of Clusters (k)")
+    axes[0].set_ylabel("Inertia (WCSS)")
+
+    axes[1].plot(eval_df["k"], eval_df["silhouette_score"], marker="o", color="#A23B72")
+    axes[1].set_title("Silhouette Score by k")
+    axes[1].set_xlabel("Number of Clusters (k)")
+    axes[1].set_ylabel("Silhouette Score")
+
+    plt.tight_layout()
+    plt.savefig(f"{RESULTS_DIR}/elbow_silhouette.png", dpi=150)
+    plt.close()
+
+
+def plot_clusters(df, best_k):
+    fig, axes = plt.subplots(1, 2, figsize=(13, 5.5))
+
+    sns.scatterplot(
+        data=df, x="Annual_Income_k", y="Spending_Score",
+        hue="Cluster", palette="viridis", s=60, ax=axes[0]
+    )
+    axes[0].set_title("Clusters: Income vs Spending Score")
+    axes[0].set_xlabel("Annual Income (k$)")
+    axes[0].set_ylabel("Spending Score")
+
+    sns.scatterplot(
+        data=df, x="Age", y="Spending_Score",
+        hue="Cluster", palette="viridis", s=60, ax=axes[1]
+    )
+    axes[1].set_title("Clusters: Age vs Spending Score")
+    axes[1].set_xlabel("Age")
+    axes[1].set_ylabel("Spending Score")
+
+    plt.tight_layout()
+    plt.savefig(f"{RESULTS_DIR}/cluster_scatter_k{best_k}.png", dpi=150)
+    plt.close()
+
+
+def summarize_clusters(df, features):
+    summary = df.groupby("Cluster")[features].mean().round(1)
+    summary["count"] = df.groupby("Cluster").size()
+    return summary
+
+
+def label_segments(summary: pd.DataFrame) -> dict:
+    """Simple rule-based business labeling from cluster centroids."""
+    labels = {}
+    income_med = summary["Annual_Income_k"].median()
+    spend_med = summary["Spending_Score"].median()
+    age_med = summary["Age"].median()
+
+    for cluster_id, row in summary.iterrows():
+        income_tag = "High Income" if row["Annual_Income_k"] >= income_med else "Low/Mid Income"
+        spend_tag = "High Spender" if row["Spending_Score"] >= spend_med else "Low Spender"
+        age_tag = "Older" if row["Age"] >= age_med else "Younger"
+        labels[cluster_id] = f"{age_tag}, {income_tag}, {spend_tag}"
+    return labels
+
+
+def main():
+    os.makedirs(RESULTS_DIR, exist_ok=True)
+
+    # 1. Load & clean
+    raw = load_data()
+    clean = clean_data(raw)
+
+    # 2. Feature scaling
+    scaled_df, scaler = scale_features(clean)
+    X = scaled_df.values
+
+    # 3. Model selection: elbow + silhouette across k=2..10
+    eval_df = evaluate_k_range(X, k_range=range(2, 11))
+    eval_df.to_csv(f"{RESULTS_DIR}/k_selection_metrics.csv", index=False)
+    plot_elbow_and_silhouette(eval_df)
+
+    best_k = best_k_by_silhouette(eval_df)
+    print(f"Selected k = {best_k} (highest silhouette score = "
+          f"{eval_df['silhouette_score'].max():.3f})")
+
+    # 4. Fit final model
+    model, labels = fit_kmeans(X, best_k)
+    clean = clean.copy()
+    clean["Cluster"] = labels
+
+    # 5. Visualize
+    plot_clusters(clean, best_k)
+
+    # 6. Business insights
+    summary = summarize_clusters(clean, FEATURES)
+    seg_labels = label_segments(summary)
+    summary["Segment_Label"] = summary.index.map(seg_labels)
+    summary.to_csv(f"{RESULTS_DIR}/cluster_summary.csv")
+
+    clean.to_csv(f"{RESULTS_DIR}/customers_with_clusters.csv", index=False)
+
+    print("\nCluster Summary (business-ready):")
+    print(summary)
+    print(f"\nAll outputs saved to {RESULTS_DIR}/")
+
+
+if __name__ == "__main__":
+    main()
