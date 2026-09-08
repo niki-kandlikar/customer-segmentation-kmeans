@@ -44,7 +44,7 @@ def plot_clusters(df, best_k):
     fig, axes = plt.subplots(1, 2, figsize=(13, 5.5))
 
     sns.scatterplot(
-        data=df, x="Annual_Income_k", y="Spending_Score",
+        data=df, x="Annual Income (k$)", y="Spending Score (1-100)",
         hue="Cluster", palette="viridis", s=60, ax=axes[0]
     )
     axes[0].set_title("Clusters: Income vs Spending Score")
@@ -52,7 +52,7 @@ def plot_clusters(df, best_k):
     axes[0].set_ylabel("Spending Score")
 
     sns.scatterplot(
-        data=df, x="Age", y="Spending_Score",
+        data=df, x="Age", y="Spending Score (1-100)",
         hue="Cluster", palette="viridis", s=60, ax=axes[1]
     )
     axes[1].set_title("Clusters: Age vs Spending Score")
@@ -73,58 +73,11 @@ def summarize_clusters(df, features):
 def label_segments(summary: pd.DataFrame) -> dict:
     """Simple rule-based business labeling from cluster centroids."""
     labels = {}
-    income_med = summary["Annual_Income_k"].median()
-    spend_med = summary["Spending_Score"].median()
+    income_med = summary["Annual Income (k$)"].median()
+    spend_med = summary["Spending Score (1-100)"].median()
     age_med = summary["Age"].median()
 
     for cluster_id, row in summary.iterrows():
-        income_tag = "High Income" if row["Annual_Income_k"] >= income_med else "Low/Mid Income"
-        spend_tag = "High Spender" if row["Spending_Score"] >= spend_med else "Low Spender"
+        income_tag = "High Income" if row["Annual Income (k$)"] >= income_med else "Low/Mid Income"
+        spend_tag = "High Spender" if row["Spending Score (1-100)"] >= spend_med else "Low Spender"
         age_tag = "Older" if row["Age"] >= age_med else "Younger"
-        labels[cluster_id] = f"{age_tag}, {income_tag}, {spend_tag}"
-    return labels
-
-
-def main():
-    os.makedirs(RESULTS_DIR, exist_ok=True)
-
-    # 1. Load & clean
-    raw = load_data()
-    clean = clean_data(raw)
-
-    # 2. Feature scaling
-    scaled_df, scaler = scale_features(clean)
-    X = scaled_df.values
-
-    # 3. Model selection: elbow + silhouette across k=2..10
-    eval_df = evaluate_k_range(X, k_range=range(2, 11))
-    eval_df.to_csv(f"{RESULTS_DIR}/k_selection_metrics.csv", index=False)
-    plot_elbow_and_silhouette(eval_df)
-
-    best_k = best_k_by_silhouette(eval_df)
-    print(f"Selected k = {best_k} (highest silhouette score = "
-          f"{eval_df['silhouette_score'].max():.3f})")
-
-    # 4. Fit final model
-    model, labels = fit_kmeans(X, best_k)
-    clean = clean.copy()
-    clean["Cluster"] = labels
-
-    # 5. Visualize
-    plot_clusters(clean, best_k)
-
-    # 6. Business insights
-    summary = summarize_clusters(clean, FEATURES)
-    seg_labels = label_segments(summary)
-    summary["Segment_Label"] = summary.index.map(seg_labels)
-    summary.to_csv(f"{RESULTS_DIR}/cluster_summary.csv")
-
-    clean.to_csv(f"{RESULTS_DIR}/customers_with_clusters.csv", index=False)
-
-    print("\nCluster Summary (business-ready):")
-    print(summary)
-    print(f"\nAll outputs saved to {RESULTS_DIR}/")
-
-
-if __name__ == "__main__":
-    main()
