@@ -1,6 +1,7 @@
-Cluster,Age,Annual_Income_k,Spending_Score,Annual_Purchases,count,Segment_Label
-0,29.8,89.8,25.5,18.5,100,"Younger, High Income, Low Spender"
-1,24.0,28.1,76.6,45.6,104,"Younger, Low/Mid Income, High Spender"
-2,41.8,94.1,81.1,60.4,100,"Older, High Income, High Spender"
-3,56.9,56.2,22.4,15.0,101,"Older, High Income, Low Spender"
-4,38.0,33.9,48.4,33.3,95,"Older, Low/Mid Income, High Spender"
+Cluster,Age,Annual Income (k$),Spending Score (1-100),count,Segment_Label
+0,56.3,54.3,49.1,45,"Older, Low/Mid Income, High Spender"
+1,26.8,57.1,48.1,39,"Younger, High Income, Low Spender"
+2,41.9,88.9,17.0,33,"Older, High Income, Low Spender"
+3,32.7,86.5,82.1,39,"Younger, High Income, High Spender"
+4,25.0,25.3,77.6,23,"Younger, Low/Mid Income, High Spender"
+5,45.5,26.3,19.4,21,"Older, Low/Mid Income, Low Spender"
